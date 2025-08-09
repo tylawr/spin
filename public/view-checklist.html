@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>View Checklist</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    .icon-bar { display:flex; gap:18px; justify-content:center; align-items:center; margin: 8px 0 18px; flex-wrap:wrap; }
+    .icon-label { font-weight:700; margin-right:8px; }
+
+    .tiles { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+    .sport-tile { width:98px; aspect-ratio:1/1; background:#fff; border:1px solid #ddd; border-radius:12px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+    .sport-tile .emoji { font-size:30px; line-height:1; }
+    .sport-tile .label { font-size:12px; color:#444; }
+    .sport-tile:hover { transform:translateY(-2px); box-shadow:0 2px 10px rgba(0,0,0,.06); }
+    .sport-tile.active { border-color:#0a66c2; box-shadow:0 0 0 3px rgba(10,102,194,.12); }
+
+    .select, .button { padding:10px 12px; border-radius:10px; border:1px solid #ccc; background:#fafafa; }
+    .button { background:#0a66c2; color:#fff; border-color:#0a66c2; font-weight:700; cursor:pointer; }
+    .button:hover { filter:brightness(.95); }
+
+    .form-card { background:#fff; border:1px solid #ddd; border-radius:10px; padding:16px; }
+    .grid { display:grid; gap:14px; grid-template-columns: 1fr auto; }
+    @media (max-width: 900px){ .grid{ grid-template-columns: 1fr; } }
+    .field label{ display:block; font-size:12px; color:#666; margin-bottom:6px; text-transform:uppercase; letter-spacing:.3px; }
+
+    .help { color:#777; font-size:13px; margin-top:8px; }
+    .error { color:#b00020; margin-top:8px; }
+    .muted { color:#777; }
+
+    .pager { display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:10px; flex-wrap:wrap; }
+    .pager .button { padding:8px 12px; }
+    .pager .button[disabled] { opacity:.5; cursor:not-allowed; }
+    .page-info { font-size:13px; color:#555; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sports Card Checklist</h1>
+    <nav>
+      <a href="/upload.html">Upload Checklist</a>
+      <a href="/view-checklist.html" class="active">View Checklist</a>
+      <a href="/athlete-search.html">Search Athlete</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <h2>View Checklist</h2>
+
+    <!-- Sport icon tiles -->
+    <div class="icon-bar">
+      <span class="icon-label">Sport</span>
+      <div class="tiles" id="sportTiles">
+        <button class="sport-tile" data-sport="Baseball" aria-pressed="false"><span class="emoji">⚾</span><span class="label">Baseball</span></button>
+        <button class="sport-tile" data-sport="Basketball" aria-pressed="false"><span class="emoji">🏀</span><span class="label">Basketball</span></button>
+        <button class="sport-tile" data-sport="Football" aria-pressed="false"><span class="emoji">🏈</span><span class="label">Football</span></button>
+        <button class="sport-tile" data-sport="Soccer" aria-pressed="false"><span class="emoji">⚽</span><span class="label">Soccer</span></button>
+        <button class="sport-tile" data-sport="MMA" aria-pressed="false"><span class="emoji">🥋</span><span class="label">MMA</span></button>
+        <button class="sport-tile" data-sport="Wrestling" aria-pressed="false"><span class="emoji">🤼</span><span class="label">Wrestling</span></button>
+      </div>
+    </div>
+
+    <section class="form-card" aria-label="Choose set and load checklist">
+      <div class="grid">
+        <div class="field">
+          <label for="cardSet">Card Set</label>
+          <select id="cardSet" class="select" required disabled>
+            <option value="">-- Select Card Set --</option>
+          </select>
+          <div id="setsHelp" class="help">Choose a sport above to load its sets.</div>
+        </div>
+        <div class="field" style="align-self:end;">
+          <button id="loadBtn" class="button" type="button" disabled>Load checklist →</button>
+        </div>
+      </div>
+      <div id="status" class="help" role="status" aria-live="polite"></div>
+      <div id="error" class="error" hidden></div>
+    </section>
+
+    <section style="margin-top:16px;">
+      <table id="checklistTable">
+        <thead>
+          <tr>
+            <th>Card Number</th>
+            <th>Subset</th>
+            <th>Athlete</th>
+            <th>Card Type</th>
+          </tr>
+        </thead>
+        <tbody id="checklistBody">
+          <tr><td colspan="4" class="muted">Pick a sport, then a set, then click “Load checklist”.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- Pagination controls -->
+      <div class="pager" id="pager" hidden>
+        <button class="button" id="prevPage" type="button">← Prev</button>
+        <span class="page-info" id="pageInfo">Page 1 of 1</span>
+        <button class="button" id="nextPage" type="button">Next →</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const tiles = Array.from(document.querySelectorAll('.sport-tile'));
+      const cardSet = document.getElementById('cardSet');
+      const loadBtn = document.getElementById('loadBtn');
+      const statusEl = document.getElementById('status');
+      const errEl = document.getElementById('error');
+      const tbody = document.getElementById('checklistBody');
+
+      const pager = document.getElementById('pager');
+      const prevBtn = document.getElementById('prevPage');
+      const nextBtn = document.getElementById('nextPage');
+      const pageInfo = document.getElementById('pageInfo');
+
+      let selectedSport = null;
+      let currentPage = 1;
+      const pageSize = 50; // rows per page
+      let totalPages = 1;
+
+      const setStatus = (m)=> statusEl.textContent = m || '';
+      const setError = (m)=> { if(m){ errEl.textContent=m; errEl.hidden=false; } else { errEl.textContent=''; errEl.hidden=true; } };
+
+      function activate(tile){
+        tiles.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
+        if(tile){ tile.classList.add('active'); tile.setAttribute('aria-pressed','true'); }
+      }
+
+      async function loadSetsForSport(sport){
+        setStatus('Loading sets…');
+        setError('');
+        cardSet.disabled = true;
+        loadBtn.disabled = true;
+        cardSet.innerHTML = '<option value="">Loading…</option>';
+        try{
+          const res = await fetch(`/api/card-sets?sport=${encodeURIComponent(sport)}`);
+          if(!res.ok){
+            const t = await res.text();
+            throw new Error(`HTTP ${res.status} — ${t}`);
+          }
+          const sets = await res.json();
+          if (!Array.isArray(sets)) throw new Error('Unexpected response for sets');
+
+          if (sets.length === 0) {
+            cardSet.innerHTML = '<option value="">— No sets found for this sport —</option>';
+            cardSet.disabled = true;
+            setStatus('No sets available for this sport.');
+            return;
+          }
+
+          cardSet.innerHTML = '<option value="">-- Select Card Set --</option>' +
+            sets.map(s => `<option value="${s}">${s}</option>`).join('');
+          cardSet.disabled = false;
+          loadBtn.disabled = true;
+          setStatus(`Loaded ${sets.length} sets`);
+        }catch(err){
+          console.error(err);
+          setError('Could not load sets.');
+          cardSet.innerHTML = '<option value="">-- Select Card Set --</option>';
+          cardSet.disabled = true;
+          setStatus('');
+        }
+      }
+
+      function updatePager(){
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages}`;
+        prevBtn.disabled = currentPage <= 1;
+        nextBtn.disabled = currentPage >= totalPages;
+        pager.hidden = totalPages <= 1;
+      }
+
+      async function fetchChecklistPage(page){
+        const sport = selectedSport;
+        const setName = cardSet.value;
+        const url = `/checklist?sport=${encodeURIComponent(sport)}&set=${encodeURIComponent(setName)}&page=${page}&pageSize=${pageSize}`;
+        const res = await fetch(url);
+        if(!res.ok){
+          const t = await res.text();
+          throw new Error(`HTTP ${res.status} — ${t}`);
+        }
+        return res.json();
+      }
+
+      async function loadChecklist(){
+        const sport = selectedSport;
+        const setName = cardSet.value;
+        if(!sport || !setName){ setError('Please choose a sport and a set.'); return; }
+        setError('');
+        setStatus('Loading checklist…');
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">Loading…</td></tr>';
+        currentPage = 1;
+        try{
+          const payload = await fetchChecklistPage(currentPage);
+          const rows = Array.isArray(payload) ? payload : (payload.cards || []);
+          totalPages = Number(payload.totalPages) || 1;
+
+          if(!rows.length){
+            tbody.innerHTML = '<tr><td colspan="4" class="muted">No rows found for this set.</td></tr>';
+            setStatus('');
+            updatePager();
+            return;
+          }
+
+          renderRows(rows);
+          setStatus(`Loaded ${rows.length} rows`);
+          updatePager();
+        }catch(err){
+          console.error(err);
+          setError('Could not load checklist.');
+          tbody.innerHTML = '<tr><td colspan="4" class="error">Error loading checklist.</td></tr>';
+          setStatus('');
+          totalPages = 1; updatePager();
+        }
+      }
+
+      function renderRows(rows){
+        const getCardNumber = r => r.card_number ?? r.number ?? r["no"] ?? '';
+        tbody.innerHTML = rows.map(r => `
+          <tr>
+            <td>${getCardNumber(r)}</td>
+            <td>${r.subset ?? ''}</td>
+            <td>${r.athlete_name ?? r.athlete ?? ''}</td>
+            <td>${r.card_type ?? ''}</td>
+          </tr>
+        `).join('');
+      }
+
+      // Events
+      tiles.forEach(btn => btn.addEventListener('click', () => {
+        selectedSport = btn.getAttribute('data-sport');
+        tiles.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
+        btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+        loadSetsForSport(selectedSport);
+        const qp = new URLSearchParams(location.search);
+        qp.set('sport', selectedSport);
+        history.replaceState(null, '', `${location.pathname}?${qp.toString()}`);
+      }));
+
+      cardSet.addEventListener('change', () => { loadBtn.disabled = !cardSet.value; });
+      loadBtn.addEventListener('click', loadChecklist);
+
+      prevBtn.addEventListener('click', async () => {
+        if (currentPage <= 1) return; 
+        currentPage--; setStatus('Loading…');
+        try {
+          const payload = await fetchChecklistPage(currentPage);
+          const rows = Array.isArray(payload) ? payload : (payload.cards || []);
+          renderRows(rows); setStatus(''); updatePager();
+        } catch (e) { console.error(e); setStatus(''); }
+      });
+      nextBtn.addEventListener('click', async () => {
+        if (currentPage >= totalPages) return; 
+        currentPage++; setStatus('Loading…');
+        try {
+          const payload = await fetchChecklistPage(currentPage);
+          const rows = Array.isArray(payload) ? payload : (payload.cards || []);
+          renderRows(rows); setStatus(''); updatePager();
+        } catch (e) { console.error(e); setStatus(''); }
+      });
+
+      // Deep-link hydrate
+      const qp = new URLSearchParams(location.search);
+      const initSport = qp.get('sport');
+      const initSet = qp.get('set');
+      if (initSport) {
+        const btn = document.querySelector(`.sport-tile[data-sport="${initSport}"]`);
+        if (btn) {
+          selectedSport = initSport;
+          btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+          loadSetsForSport(initSport).then(() => {
+            if (initSet) {
+              cardSet.value = initSet;
+              cardSet.disabled = false;
+              loadBtn.disabled = false;
+              loadChecklist();
+            }
+          });
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

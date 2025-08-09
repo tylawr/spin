@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Checklist</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Sports Card Checklist</h1>
+    <nav>
+      <a href="/upload.html">Upload Checklist</a>
+      <a href="/view-checklist.html">View Checklist</a>
+      <a href="/athlete-search.html">Search Athlete</a>
+    </nav>
+  </header>
+  <div class="container">
+    <h2>Upload a New Checklist</h2>
+    <form action="/upload-checklist" method="POST" enctype="multipart/form-data">
+      <label for="sport">Sport:</label><br />
+      <select name="sport" id="sport" required>
+        <option value="Basketball">Basketball</option>
+        <option value="Baseball">Baseball</option>
+        <option value="Football">Football</option>
+        <option value="MMA">MMA</option>
+        <option value="Soccer">Soccer</option>
+        <option value="Wrestling">Wrestling</option>
+      </select><br /><br />
+
+      <label for="setName">Set Name:</label><br />
+      <input type="text" id="setName" name="setName" required><br /><br />
+
+      <label for="csvFile">CSV File:</label><br />
+      <input type="file" id="csvFile" name="csvFile" accept=".csv" required><br /><br />
+
+      <button type="submit">Upload</button>
+    </form>
+  </div>
+</body>
+</html>
+

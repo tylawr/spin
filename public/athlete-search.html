@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Athlete Search</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Sports Card Checklist</h1>
+    <nav>
+      <a href="/upload.html">Upload Checklist</a>
+      <a href="/view-checklist.html">View Checklist</a>
+      <a href="/athlete-search.html" class="active">Search Athlete</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <h2>Athlete Search</h2>
+    <form id="athleteSearchForm">
+      <label for="sport">Sport:</label>
+      <select id="sport" name="sport" required>
+        <option value="">-- Select Sport --</option>
+        <option value="Basketball">Basketball</option>
+        <option value="Baseball">Baseball</option>
+        <option value="Football">Football</option>
+        <option value="MMA">MMA</option>
+        <option value="Soccer">Soccer</option>
+        <option value="Wrestling">Wrestling</option>
+      </select>
+      <br><br>
+
+      <label for="cardSet">Card Set:</label>
+      <select id="cardSet" name="cardSet" required>
+        <option value="">-- Select Card Set --</option>
+      </select>
+      <br><br>
+
+      <label for="athlete">Athlete:</label>
+      <select id="athlete" name="athlete" required>
+        <option value="">-- Select Athlete --</option>
+      </select>
+      <br><br>
+
+      <button type="submit">Search</button>
+    </form>
+  </div>
+
+  <script>
+    const sportSelect = document.getElementById('sport');
+    const cardSetSelect = document.getElementById('cardSet');
+    const athleteSelect = document.getElementById('athlete');
+
+    sportSelect.addEventListener('change', async () => {
+      const sport = sportSelect.value;
+      cardSetSelect.innerHTML = '<option value="">Loading...</option>';
+      athleteSelect.innerHTML = '<option value="">-- Select Athlete --</option>';
+      try {
+        const res = await fetch(`/api/card-sets?sport=${encodeURIComponent(sport)}`);
+        const sets = await res.json();
+        cardSetSelect.innerHTML = '<option value="">-- Select Card Set --</option>';
+        sets.forEach(set => {
+          const option = document.createElement('option');
+          option.value = set;
+          option.textContent = set;
+          cardSetSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error(err);
+        cardSetSelect.innerHTML = '<option value="">Error loading sets</option>';
+      }
+    });
+
+    cardSetSelect.addEventListener('change', async () => {
+      const sport = sportSelect.value;
+      const set = cardSetSelect.value;
+      athleteSelect.innerHTML = '<option value="">Loading...</option>';
+      try {
+        const res = await fetch(`/api/athletes?sport=${encodeURIComponent(sport)}&set=${encodeURIComponent(set)}`);
+        const data = await res.json();
+        const athletes = Array.isArray(data) ? data : data.athletes || [];
+        athleteSelect.innerHTML = '<option value="">-- Select Athlete --</option>';
+        athletes.forEach(name => {
+          const option = document.createElement('option');
+          option.value = name;
+          option.textContent = name;
+          athleteSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error(err);
+        athleteSelect.innerHTML = '<option value="">Error loading athletes</option>';
+      }
+    });
+
+    document.getElementById('athleteSearchForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const sport = sportSelect.value;
+      const set = cardSetSelect.value;
+      const athlete = athleteSelect.value;
+      if (!sport || !set || !athlete) return;
+      window.location.href = `/athlete-summary.html?sport=${encodeURIComponent(sport)}&set=${encodeURIComponent(set)}&athlete=${encodeURIComponent(athlete)}`;
+    });
+  </script>
+</body>
+</html>

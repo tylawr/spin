@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Athlete Summary</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Ensure badge is actually hidden unless JS explicitly shows it */
+    .rookie-badge { display: none; padding: 4px 8px; border-radius: 999px; background:#fff4cc; border:1px solid #f0d47a; color:#5a4600; font-weight:700; }
+    .rookie-badge.is-visible { display: inline-flex; align-items:center; gap:6px; }
+
+    .summary-grid { display:grid; gap:16px; grid-template-columns: repeat(4, minmax(0,1fr)); margin: 16px 0 8px; }
+    @media (max-width: 900px){ .summary-grid{ grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px){ .summary-grid{ grid-template-columns: 1fr; } }
+    .summary-card { background:#fff; border:1px solid #ddd; border-radius:8px; padding:14px; text-align:center; }
+    .summary-icon { font-size:28px; line-height:1; }
+    .summary-number { font-size:28px; font-weight:700; margin-top:4px; }
+    .summary-label { color:#666; font-size:12px; text-transform:uppercase; letter-spacing:.3px; }
+
+    .header-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between; }
+    .title-wrap { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+    .toolbar { display:flex; gap:10px; align-items:center; }
+    .muted { color:#777; }
+    .error { color:#b00020; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sports Card Checklist</h1>
+    <nav>
+      <a href="/upload.html">Upload Checklist</a>
+      <a href="/view-checklist.html">View Checklist</a>
+      <a href="/athlete-search.html">Search Athlete</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="header-row">
+      <div class="title-wrap">
+        <h2 id="athlete-name" style="margin:0;">Athlete Summary</h2>
+        <span id="rookie-badge" class="rookie-badge"><span aria-hidden="true">⭐</span> ROOKIE</span>
+      </div>
+      <div class="toolbar">
+        <label for="athleteSwitcher" style="font-weight:bold;">Switch athlete:</label>
+        <select id="athleteSwitcher" class="select" disabled>
+          <option value="">Loading…</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <section>
+      <div class="summary-grid">
+        <div class="summary-card" title="Unique card types">
+          <div class="summary-icon">📇</div>
+          <div class="summary-number" id="card-type-count">0</div>
+          <div class="summary-label">Card types</div>
+        </div>
+        <div class="summary-card" title="Sum of all numbered parallels">
+          <div class="summary-icon">🎯</div>
+          <div class="summary-number" id="total-numbered">0</div>
+          <div class="summary-label">Total numbered</div>
+        </div>
+        <div class="summary-card" title="Total numbered autograph cards">
+          <div class="summary-icon">✍️</div>
+          <div class="summary-number" id="total-autographs">0</div>
+          <div class="summary-label">Autographs</div>
+        </div>
+        <div class="summary-card" title="Total numbered autograph relic cards">
+          <div class="summary-icon">🧵</div>
+          <div class="summary-number" id="total-autograph-relics">0</div>
+          <div class="summary-label">Autograph relics</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Breakdown table (uses API's breakdown: subset, cardType, total) -->
+    <section>
+      <table id="breakdown-table">
+        <thead>
+          <tr>
+            <th>Subset</th>
+            <th>Card type</th>
+            <th>Total numbered</th>
+          </tr>
+        </thead>
+        <tbody id="breakdown-body">
+          <tr><td colspan="3" class="muted">Loading…</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const qs = new URLSearchParams(location.search);
+      const sport = qs.get('sport') || '';
+      const setName = qs.get('set') || '';
+      let athlete = qs.get('athlete') || '';
+
+      const nameEl = document.getElementById('athlete-name');
+      const rookieBadge = document.getElementById('rookie-badge');
+      const cardTypeCountEl = document.getElementById('card-type-count');
+      const totalNumberedEl = document.getElementById('total-numbered');
+      const totalAutographsEl = document.getElementById('total-autographs');
+      const totalAutographRelicsEl = document.getElementById('total-autograph-relics');
+      const tbody = document.getElementById('breakdown-body');
+      const switcher = document.getElementById('athleteSwitcher');
+
+      function setTitle(name){ nameEl.textContent = name || 'Athlete Summary'; }
+
+      function showRookie(on){
+        // Use class toggling only; CSS controls visibility
+        if(on){
+          rookieBadge.classList.add('is-visible');
+          rookieBadge.setAttribute('aria-hidden','false');
+        } else {
+          rookieBadge.classList.remove('is-visible');
+          rookieBadge.setAttribute('aria-hidden','true');
+        }
+      }
+
+      async function loadAthleteList(){
+        switcher.disabled = true;
+        switcher.innerHTML = '<option>Loading…</option>';
+        try {
+          const res = await fetch(`/api/athletes?sport=${encodeURIComponent(sport)}&set=${encodeURIComponent(setName)}`);
+          if(!res.ok) throw new Error('Failed to load athlete list');
+          const data = await res.json();
+          const list = Array.isArray(data) ? data : (data.athletes || []);
+          switcher.innerHTML = '<option value="">Select athlete…</option>' + list.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('');
+          if (athlete) switcher.value = athlete;
+          switcher.disabled = false;
+        } catch (e) {
+          console.error(e);
+          switcher.innerHTML = '<option value="">Error loading athletes</option>';
+        }
+      }
+
+      async function loadSummary(){
+        try{
+          const url = `/api/athlete-summary?sport=${encodeURIComponent(sport)}&set=${encodeURIComponent(setName)}&athlete=${encodeURIComponent(athlete)}`;
+          const res = await fetch(url);
+          if(!res.ok) throw new Error('Failed to load summary');
+          const data = await res.json();
+
+          setTitle(data.athlete || athlete);
+          showRookie(Boolean(data.isRookie));
+
+          const breakdown = Array.isArray(data.breakdown) ? data.breakdown : [];
+
+          // Numbers
+          cardTypeCountEl.textContent = data.cardTypeCount ?? new Set(breakdown.map(b => (b.cardType||'').trim())).size;
+          totalNumberedEl.textContent = data.totalParallelCards ?? breakdown.reduce((s,b)=> s + (Number(b.total)||0), 0);
+          totalAutographsEl.textContent = data.autographCount ?? breakdown.filter(b => (b.subset||'').toLowerCase()==='autograph').reduce((s,b)=> s + (Number(b.total)||0),0);
+          totalAutographRelicsEl.textContent = data.autographRelicCount ?? breakdown.filter(b => (b.subset||'').toLowerCase()==='autograph relic').reduce((s,b)=> s + (Number(b.total)||0),0);
+
+          // Table rows
+          if(!breakdown.length){
+            tbody.innerHTML = '<tr><td colspan="3" class="muted">No cards found for this athlete in this set.</td></tr>';
+          } else {
+            tbody.innerHTML = breakdown.map(r => `
+              <tr>
+                <td>${r.subset || ''}</td>
+                <td>${r.cardType || ''}</td>
+                <td>${Number(r.total) || 0}</td>
+              </tr>
+            `).join('');
+          }
+        }catch(err){
+          console.error(err);
+          tbody.innerHTML = '<tr><td colspan="3" class="error">Error loading summary.</td></tr>';
+          showRookie(false);
+        }
+      }
+
+      switcher.addEventListener('change', () => {
+        const val = switcher.value;
+        if(!val) return;
+        athlete = val;
+        const next = new URLSearchParams({ sport, set: setName, athlete });
+        history.replaceState(null, '', `${location.pathname}?${next.toString()}`);
+        loadSummary();
+      });
+
+      // Initial load
+      // Ensure badge starts hidden until we know for sure
+      showRookie(false);
+      loadAthleteList();
+      if (athlete) {
+        setTitle(athlete);
+        loadSummary();
+      }
+    })();
+  </script>
+</body>
+</html>
