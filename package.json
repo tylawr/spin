@@ -15,3 +15,11 @@
     "sqlite3": "^5.1.7"
   }
 }
+
+{
+  "scripts": {
+    "postinstall": "npm rebuild sqlite3 --build-from-source=false",
+    "start": "node app.js",
+    "build": "echo no-build"
+  }
+}
