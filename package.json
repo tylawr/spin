@@ -1,9 +1,17 @@
 {
+  "name": "spin",
+  "version": "1.0.0",
+  "main": "app.js",
+  "engines": { "node": "20.x" },
+  "scripts": {
+    "start": "node app.js",
+    "build": "echo no-build"
+  },
   "dependencies": {
-    "body-parser": "^2.2.0",
-    "csv-parser": "^3.2.0",
-    "express": "^5.1.0",
-    "multer": "^2.0.2",
+    "body-parser": "^1.20.2",
+    "csv-parser": "^3.0.0",
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
     "sqlite3": "^5.1.7"
   }
 }

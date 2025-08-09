@@ -8,7 +8,8 @@ const sqlite3 = require('sqlite3').verbose();
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000; // ✅ Render uses process.env.PORT
+const HOST = '0.0.0.0';                // ✅ Bind to all interfaces on Render
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
@@ -25,6 +26,13 @@ const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir);
 }
+
+// ✅ Ensure uploads dir exists (Render instances start empty)
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+
+// ✅ Health check for Render
+app.get('/health', (_req, res) => res.send('ok'));
 
 // === Upload Checklist ===
 app.post('/upload-checklist', upload.single('csvFile'), (req, res) => {
@@ -49,7 +57,7 @@ app.post('/upload-checklist', upload.single('csvFile'), (req, res) => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       card_number TEXT,
       athlete_name TEXT,
-      rookie TEXT,            -- <-- normalized column name
+      rookie TEXT,
       subset TEXT,
       card_type TEXT
     )`);
@@ -128,7 +136,11 @@ app.post('/upload-checklist', upload.single('csvFile'), (req, res) => {
 // === Legacy Checklist Viewer Endpoint (kept) ===
 // Still available at /checklist but we recommend /api/checklist
 app.get('/checklist', (req, res) => {
-  const { sport, set, page = 1 } = req.query;
+  const { sport, set } = req.query;
+  const page = Number(req.query.page) || 1;
+  // ✅ honor client-provided pageSize (default 50, capped 200)
+  const pageSize = Math.max(1, Math.min(200, Number(req.query.pageSize) || 50));
+
   const dbName = `${sanitizeFileName(sport)}_${sanitizeFileName(set)}.db`;
   const dbPath = path.join(dataDir, dbName);
 
@@ -137,7 +149,6 @@ app.get('/checklist', (req, res) => {
   }
 
   const db = new sqlite3.Database(dbPath);
-  const pageSize = 50;
   const offset = (page - 1) * pageSize;
 
   db.serialize(() => {
@@ -171,6 +182,7 @@ app.get('/', (req, res) => {
   res.send('<h2>Welcome to the Sports Card Checklist App</h2><p>Visit <a href="/upload.html">/upload.html</a> to upload a checklist or <a href="/view-checklist.html">/view-checklist.html</a> to view one.</p>');
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+// ✅ Bind to HOST for Render
+app.listen(PORT, HOST, () => {
+  console.log(`Server running on http://${HOST}:${PORT}`);
 });
